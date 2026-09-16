@@ -1,0 +1,157 @@
+From 97654b33ec421f52bf7c30985636fdee2d170191 Mon Sep 17 00:00:00 2001
+From: sunhn <sunhuaining@tecorigion.com>
+Date: Wed, 16 Sep 2026 03:40:00 +0000
+Subject: [PATCH 2/2] =?UTF-8?q?[sdaa-adapt]=20BoltzGen=20=E5=8F=8C?=
+ =?UTF-8?q?=E5=85=BC=E5=AE=B9=E9=80=82=E9=85=8D=EF=BC=9Ad?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ sdaa/SDAA_ADAPTATION.md | 87 ++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 78 insertions(+), 9 deletions(-)
+
+diff --git a/sdaa/SDAA_ADAPTATION.md b/sdaa/SDAA_ADAPTATION.md
+index c97b143..9158f68 100644
+--- a/sdaa/SDAA_ADAPTATION.md
++++ b/sdaa/SDAA_ADAPTATION.md
+@@ -1,4 +1,4 @@
+-# BoltzGen CUDA 自定义算子 SDAA 迁移适配记录（双兼容）
++# BoltzGen SDAA 迁移适配记录（双兼容）
+ 
+ > BoltzGen 是蛋白复合物结构预测模型（Boltz-2 同源），**纯 PyTorch** + cuequivariance
+ > 三角算子（懒加载、默认降级）。本次适配的核心是：**保持 CUDA / SDAA 双兼容**，
+@@ -162,9 +162,78 @@ if _seed is not None:
+ 
+ > 不能无脑 `pip install boltzgen`（会拉 cu12 包装失败），需手动装核心依赖、跳过 cu12。
+ 
+-## 六、验证结果
++## 六、运行方式
++
++### 6.1 前置准备
++
++1. 装依赖：`pip install -r requirements_sdaa.txt`（5 个非 pip 项见注释）（lightning-teco：pip install git+http://10.10.30.109/huangzhen/lightning-teco.git）
++2. 下权重（~8GB，国内走 hf-mirror，6 个文件分别下）：
++   ```bash
++   export HF_ENDPOINT=https://hf-mirror.com
++   python -c "
++   from huggingface_hub import hf_hub_download
++   # 5 个模型权重（repo 类型 model）
++   for f in ['boltzgen1_diverse.ckpt','boltzgen1_adherence.ckpt','boltzgen1_ifold.ckpt','boltz2_conf_final.ckpt','boltz2_aff.ckpt']:
++       hf_hub_download('boltzgen/boltzgen-1', f)
++   # mols.zip（repo 类型 dataset）
++   hf_hub_download('boltzgen/inference-data', 'mols.zip', repo_type='dataset')
++   "
++   ```
++3. 载入 SDAA 运行时：`source /opt/tecoai/setvars.sh`
++
++### 6.2 SDAA 推理（protein-anything，蛋白设计）
++
++```bash
++source /opt/tecoai/setvars.sh
++source /home/py312/bin/activate
++cd /data01/tuyilist/boltzgen
++
++boltzgen run example/vanilla_protein/1g13prot.yaml \
++  --protocol protein-anything \
++  --output /tmp/boltzgen_out \
++  --num_designs 2 \
++  --devices 1 \
++  --cache /root/.cache \
++  --use_kernels false
++```
++
++### 6.3 小分子结合协议（含 affinity，加载 boltz2_aff + mols.zip）
++
++```bash
++boltzgen run example/protein_binding_small_molecule/chorismite.yaml \
++  --protocol protein-small_molecule \
++  --output /tmp/boltzgen_sm_out \
++  --num_designs 2 --devices 1 --cache /root/.cache --use_kernels false
++```
++
++### 6.4 精度对标（固定随机种子，配合 3.6/3.7 改动）
++
++```bash
++export BOLTZGEN_SEED=42
++boltzgen run example/vanilla_protein/1g13prot.yaml \
++  --protocol protein-anything --output /tmp/boltzgen_seed_out \
++  --num_designs 2 --devices 1 --cache /root/.cache --use_kernels false
++```
++
++### 6.5 CUDA 基准（用于精度/性能对比）
++
++```bash
++source ~/miniconda3/etc/profile.d/conda.sh && conda activate cuda_env_py310
++export HF_ENDPOINT=https://hf-mirror.com
++cd ~/tuyilist/boltzgen
++CUDA_VISIBLE_DEVICES=0 boltzgen run example/vanilla_protein/1g13prot.yaml \
++  --protocol protein-anything --output /tmp/boltzgen_cuda_out \
++  --num_designs 2 --devices 1 --cache ~/.cache --use_kernels false
++```
++
++> 参数说明：
++> - `--use_kernels false`：SDAA 强制纯 torch（auto 已自动判 capability=None→False，显式写更清晰）
++> - `--cache`：权重缓存目录（SDAA 用 /root/.cache，CUDA 用 ~/.cache）
++> - 权重已缓存则跳过下载；否则走 HF_ENDPOINT 镜像自动下载
++
++## 七、验证结果
+ 
+-### 6.1 端到端推理（SDAA，全部 0 failed）
++### 7.1 端到端推理（SDAA，全部 0 failed）
+ 
+ **protein-anything（`vanilla_protein/1g13prot.yaml`）：**
+ 
+@@ -187,11 +256,11 @@ if _seed is not None:
+ | design_folding | 600.4s |
+ | affinity | 681.4s |
+ 
+-### 6.2 权重/数据覆盖（6 文件全跑通）
++### 7.2 权重/数据覆盖（6 文件全跑通）
+ 
+ diverse / adherence / ifold / conf_final / aff / mols.zip 全部在 SDAA 上跑通，0 failed。
+ 
+-### 6.3 性能对比（CUDA A100 vs SDAA，均 use_kernels=False 纯 torch）
++### 7.3 性能对比（CUDA A100 vs SDAA，均 use_kernels=False 纯 torch）
+ 
+ | 步骤 | CUDA (A100) | SDAA | 倍率 |
+ |------|------|------|:---:|
+@@ -201,7 +270,7 @@ diverse / adherence / ifold / conf_final / aff / mols.zip 全部在 SDAA 上跑
+ | design_folding | 54.5s | 387s | 7.1× |
+ | **总计** | **~250s（4.2min）** | **~2930s（48.8min）** | **~11.7×** |
+ 
+-### 6.4 精度对比（核心结论）
++### 7.4 精度对比（核心结论）
+ 
+ **算子精度（SDAA vs CUDA，相同输入）：**
+ 
+@@ -225,7 +294,7 @@ diverse / adherence / ifold / conf_final / aff / mols.zip 全部在 SDAA 上跑
+ 2. **17 Å 坐标分叉 = diffusion 的混沌敏感性**：diffusion 几十步迭代去噪，每步 2.6e-5 级浮点差异经非线性反复放大，最终结构分叉到 17 Å。这是**迭代生成模型的固有性质**，非 SDAA bug。
+ 3. **序列一致**：逆折叠的 argmax 对结构差异不敏感（0.49 和 0.51 都取 0.5），所以离散序列一致、连续坐标分叉。
+ 
+-### 6.5 精度对标方法论（重要）
++### 7.5 精度对标方法论（重要）
+ 
+ diffusion 这类**迭代生成模型**，不能比「最终结构一致性」（混沌必然分叉），而应比：
+ 
+@@ -234,7 +303,7 @@ diffusion 这类**迭代生成模型**，不能比「最终结构一致性」（
+ - ✅ **可复现性**：固定 seed + randn 移 CPU（绕过设备端 RNG offset 差异）
+ - ❌ 最终结构一致性（混沌，无意义）
+ 
+-## 七、踩坑记录
++## 八、踩坑记录
+ 
+ | # | 坑 | 解决 |
+ |---|----|------|
+@@ -249,7 +318,7 @@ diffusion 这类**迭代生成模型**，不能比「最终结构一致性」（
+ | 9 | boltzgen `--cache` 与 hf_hub_download 默认缓存路径不一致 → 重复下载 | 软链 `~/.cache/models--*` → `huggingface/hub/models--*` |
+ | 10 | Python 3.10 环境装 boltzgen 报 `requires-python >=3.11` | `--ignore-requires-python`（3.10 实际能跑）|
+ 
+-## 八、产物清单
++## 九、产物清单
+ 
+ | 产物 | 说明 |
+ |------|------|
+-- 
+2.41.0
+
