@@ -1,0 +1,25 @@
+﻿# BoltzGen SDAA 依赖（龙芯 loongarch64, py312, 实测版本）
+# 跳过 NVIDIA 专属：cuequivariance_ops_cu12 / cuequivariance_ops_torch_cu12 / cuequivariance_torch / nvidia-ml-py
+
+#torch==2.12.0                 # 非 pip：torch_sdaa 3.3.0b0，先 source /opt/tecoai/setvars.sh
+pytorch-lightning==2.5.1
+#lightning-teco==1.8.6         # 非 pip：本地 sdaa 目录 pip install，setup.py 已修 pkg_resources
+numpy==1.26.4
+numba==0.65.0
+matplotlib==3.11.1
+pandas==3.0.3
+scikit-learn==1.9.1
+hydra-core==1.3.6
+einops==0.8.2
+einx==0.4.3
+mashumaro==3.22
+huggingface_hub==1.19.0
+gemmi==0.7.5                  # 需 nanobind==2.4.0 + CXXFLAGS=-fpermissive 编译
+biotite #==0.1.dev5354+gaf1c4bb0e   # 非 pip：源码编译 wheel（Rust+Cython）
+biopython==1.88
+pdbeccdutils==1.0.4
+rdkit #==2026.9.1               # 非 pip：自包含 whl（linux_loongarch64）
+hydride==1.2.3
+pydssp==0.9.1
+logomaker==0.8.7
+edit_distance==1.0.9

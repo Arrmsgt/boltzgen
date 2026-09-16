@@ -552,7 +552,7 @@ class AtomDiffusion(Module):
 
         # atom position is noise at the beginning
         init_sigma = sigmas[0]
-        atom_coords = init_sigma * torch.randn(shape, device=self.device)
+        atom_coords = init_sigma * torch.randn(shape).to(self.device)
         feats = network_condition_kwargs["feats"]
 
         # gradually denoise
@@ -584,7 +584,7 @@ class AtomDiffusion(Module):
                     torch.einsum("bmd,bds->bms", atom_coords, random_R) + random_tr
                 )
 
-            eps = noise_scale * sqrt(noise_var) * torch.randn(shape, device=self.device)
+            eps = noise_scale * sqrt(noise_var) * torch.randn(shape).to(self.device)
             atom_coords_noisy = atom_coords + eps
 
             with torch.no_grad():
@@ -641,7 +641,7 @@ class AtomDiffusion(Module):
             self.sigma_data
             * (
                 self.P_mean
-                + self.P_std * torch.randn((batch_size,), device=self.device)
+                + self.P_std * torch.randn((batch_size,)).to(self.device)
             ).exp()
         )
 
@@ -670,7 +670,7 @@ class AtomDiffusion(Module):
             sigmas = self.noise_distribution(batch_size * multiplicity)
 
         padded_sigmas = rearrange(sigmas, "b -> b 1 1")
-        noise = torch.randn_like(atom_coords)
+        noise = torch.randn(atom_coords.shape, dtype=atom_coords.dtype).to(atom_coords.device)
         noised_atom_coords = atom_coords + padded_sigmas * noise
         # alphas=1. in paper
 

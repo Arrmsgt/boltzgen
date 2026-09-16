@@ -31,6 +31,16 @@ def main(config: str, args: List) -> None:
     args : List
         List of arguments to override the configuration.
     """
+    # SDAA/CUDA 精度对标：BOLTZGEN_SEED 环境变量固定随机种子
+    import os as _seed_os, random as _seed_random
+    import numpy as _seed_np
+    _seed = _seed_os.environ.get("BOLTZGEN_SEED")
+    if _seed is not None:
+        _seed = int(_seed)
+        _seed_random.seed(_seed)
+        _seed_np.random.seed(_seed)
+        import torch as _seed_torch
+        _seed_torch.manual_seed(_seed)
     # Load the configuration
     args = omegaconf.OmegaConf.from_dotlist(args)
     config = omegaconf.OmegaConf.load(config)

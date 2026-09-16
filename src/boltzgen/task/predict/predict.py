@@ -16,6 +16,12 @@ from pytorch_lightning import LightningModule, Trainer
 
 from pytorch_lightning.strategies import DDPStrategy
 
+# SDAA 适配：import lightning_teco 注册 SDAAAccelerator（供 accelerator="sdaa" 使用）
+try:
+    import lightning_teco  # noqa: F401
+except ImportError:
+    pass
+
 from boltzgen.task.predict.data_from_generated import FromGeneratedDataModule
 from boltzgen.task.predict.writer import (
     DesignWriter,
@@ -116,6 +122,14 @@ class Predict(Task):
 
         # Flip some arguments in debug mode
         devices = self.trainer.get("devices", 1)
+
+        # SDAA 适配：accelerator 动态选择（sdaa 优先，cuda 兜底，保持双兼容）
+        if hasattr(torch, "sdaa") and torch.sdaa.is_available():
+            self.trainer["accelerator"] = "sdaa"
+        elif torch.cuda.is_available():
+            self.trainer["accelerator"] = "gpu"
+        else:
+            self.trainer["accelerator"] = "cpu"
 
         if self.debug:
             if isinstance(devices, int):

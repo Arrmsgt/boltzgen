@@ -918,10 +918,14 @@ class BinderDesignPipeline:
             )
 
         # Handle use_kernels argument
-        device_capability = torch.cuda.get_device_capability()
+        # SDAA 适配：SDAA 无 CUDA cuEquivariance kernel，capability 置 None 强制走纯 torch
+        if hasattr(torch, "sdaa") and torch.sdaa.is_available():
+            device_capability = None
+        else:
+            device_capability = torch.cuda.get_device_capability()
         use_kernels = None
         if args.use_kernels == "auto":
-            use_kernels = device_capability[0] >= 8
+            use_kernels = device_capability is not None and device_capability[0] >= 8
         elif args.use_kernels == "true":
             use_kernels = True
         elif args.use_kernels == "false":
@@ -938,9 +942,13 @@ class BinderDesignPipeline:
             protocol_config, args.config, step_names
         )
 
-        devices = (
-            args.devices if args.devices is not None else torch.cuda.device_count()
-        )
+        # SDAA 适配：device_count 优先 sdaa
+        if args.devices is not None:
+            devices = args.devices
+        elif hasattr(torch, "sdaa") and torch.sdaa.is_available():
+            devices = torch.sdaa.device_count()
+        else:
+            devices = torch.cuda.device_count()
         print(f"Using {devices} devices")
 
         self.steps = []
@@ -1730,6 +1738,16 @@ def merge_command(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
+    # SDAA/CUDA 精度对标：BOLTZGEN_SEED 环境变量固定随机种子
+    import os as _seed_os, random as _seed_random
+    import numpy as _seed_np
+    _seed = _seed_os.environ.get("BOLTZGEN_SEED")
+    if _seed is not None:
+        _seed = int(_seed)
+        _seed_random.seed(_seed)
+        _seed_np.random.seed(_seed)
+        import torch as _seed_torch
+        _seed_torch.manual_seed(_seed)
     parser = build_parser()
     args = parser.parse_args()
 

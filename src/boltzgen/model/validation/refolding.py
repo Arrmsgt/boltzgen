@@ -302,7 +302,7 @@ class RefoldingValidator(design.DesignValidator):
         torch._C._cuda_clearCublasWorkspaces()
         torch._dynamo.reset()
         gc.collect()
-        torch.cuda.empty_cache()
+        (torch.sdaa if hasattr(torch, "sdaa") and torch.sdaa.is_available() else torch.cuda).empty_cache()
 
         # Compute standard metrics
         self.common_on_epoch_end(model, logname="val_monomer_ligand")

@@ -1165,7 +1165,7 @@ class Boltz(LightningModule):
                         "res_type =",
                         batch["res_type"].shape,
                     )
-                    torch.cuda.empty_cache()
+                    (torch.sdaa if hasattr(torch, "sdaa") and torch.sdaa.is_available() else torch.cuda).empty_cache()
                     return
                 raise e
         else:
@@ -1184,7 +1184,7 @@ class Boltz(LightningModule):
                 if "out of memory" in str(e):
                     msg = f"| WARNING: ran out of memory, skipping batch, {idx_dataset}"
                     print(msg)
-                    torch.cuda.empty_cache()
+                    (torch.sdaa if hasattr(torch, "sdaa") and torch.sdaa.is_available() else torch.cuda).empty_cache()
                     return
                 raise e
 
@@ -1371,7 +1371,7 @@ class Boltz(LightningModule):
         except RuntimeError as e:  # catch out of memory exceptions
             if "out of memory" in str(e):
                 print("| WARNING: ran out of memory, skipping batch")
-                torch.cuda.empty_cache()
+                (torch.sdaa if hasattr(torch, "sdaa") and torch.sdaa.is_available() else torch.cuda).empty_cache()
                 return {"exception": True}
             else:
                 raise e
